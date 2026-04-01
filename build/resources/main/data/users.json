@@ -1,0 +1,91 @@
+[ {
+  "id" : "admin",
+  "name" : "Admin",
+  "password" : "admin123",
+  "role" : "ADMIN"
+}, {
+  "id" : "pl1",
+  "name" : "Project Leader 1",
+  "password" : "pl123",
+  "role" : "PL"
+}, {
+  "id" : "pl2",
+  "name" : "Project Leader 2",
+  "password" : "pl123",
+  "role" : "PL"
+}, {
+  "id" : "dev1",
+  "name" : "Developer 1",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev2",
+  "name" : "Developer 2",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev3",
+  "name" : "Developer 3",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev4",
+  "name" : "Developer 4",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev5",
+  "name" : "Developer 5",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev6",
+  "name" : "Developer 6",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev7",
+  "name" : "Developer 7",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev8",
+  "name" : "Developer 8",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev9",
+  "name" : "Developer 9",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "dev10",
+  "name" : "Developer 10",
+  "password" : "dev123",
+  "role" : "DEV"
+}, {
+  "id" : "tester1",
+  "name" : "Tester 1",
+  "password" : "test123",
+  "role" : "TESTER"
+}, {
+  "id" : "tester2",
+  "name" : "Tester 2",
+  "password" : "test123",
+  "role" : "TESTER"
+}, {
+  "id" : "tester3",
+  "name" : "Tester 3",
+  "password" : "test123",
+  "role" : "TESTER"
+}, {
+  "id" : "tester4",
+  "name" : "Tester 4",
+  "password" : "test123",
+  "role" : "TESTER"
+}, {
+  "id" : "tester5",
+  "name" : "Tester 5",
+  "password" : "test123",
+  "role" : "TESTER"
+} ]
