@@ -6,6 +6,7 @@ import com.se2026.ims.repository.Repository;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Objects;
 
 public class IssueService {
     private final Repository<Issue> issueRepository;
@@ -62,9 +63,9 @@ public class IssueService {
 
     public List<Issue> searchIssues(String projectId, String reporterId, String assigneeId, IssueStatus status) {
         return issueRepository.findAll().stream()
-                .filter(issue -> (projectId == null || issue.getProjectId().equals(projectId)))
-                .filter(issue -> (reporterId == null || issue.getReporterId().equals(reporterId)))
-                .filter(issue -> (assigneeId == null || issue.getAssigneeId().equals(assigneeId)))
+                .filter(issue -> (projectId == null || Objects.equals(issue.getProjectId(), projectId)))
+                .filter(issue -> (reporterId == null || Objects.equals(issue.getReporterId(), reporterId)))
+                .filter(issue -> (assigneeId == null || Objects.equals(issue.getAssigneeId(), assigneeId)))
                 .filter(issue -> (status == null || issue.getStatus() == status))
                 .collect(Collectors.toList());
     }
@@ -98,6 +99,7 @@ public class IssueService {
     }
 
     private int calculateSimilarity(String s1, String s2) {
+        if (s1 == null || s2 == null) return 0;
         // 간단한 키워드 매칭 기반 유사도 측정 (실제로는 더 복잡한 알고리즘 가능)
         String[] words1 = s1.toLowerCase().split("\\s+");
         String[] words2 = s2.toLowerCase().split("\\s+");

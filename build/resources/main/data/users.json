@@ -88,4 +88,9 @@
   "name" : "Tester 5",
   "password" : "test123",
   "role" : "TESTER"
+}, {
+  "id" : "yeonji1214",
+  "name" : "yeonji",
+  "password" : "1234",
+  "role" : "ADMIN"
 } ]

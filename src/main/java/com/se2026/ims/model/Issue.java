@@ -21,6 +21,7 @@ public class Issue implements Identifiable {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime reportedDate;
     
+    @JsonProperty("comments")
     private List<Comment> comments = new ArrayList<>();
 
     public Issue() {}
@@ -39,6 +40,7 @@ public class Issue implements Identifiable {
         this.reportedDate = LocalDateTime.now();
         this.status = IssueStatus.NEW;
         this.priority = Priority.MAJOR;
+        this.comments = new ArrayList<>();
     }
 
     // Getters and Setters
@@ -72,7 +74,10 @@ public class Issue implements Identifiable {
     public LocalDateTime getReportedDate() { return reportedDate; }
     public void setReportedDate(LocalDateTime reportedDate) { this.reportedDate = reportedDate; }
 
-    public List<Comment> getComments() { return comments; }
+    public List<Comment> getComments() {
+        if (comments == null) comments = new ArrayList<>();
+        return comments;
+    }
     public void setComments(List<Comment> comments) { this.comments = comments; }
     
     public void addComment(Comment comment) {

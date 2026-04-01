@@ -56,10 +56,7 @@ public class ScenarioTest {
         issueService.createIssue(issueId, "Bug in login", "Login page is slow", "project1", "tester1");
         issueService.addComment(issueId, "tester1", "First comment by tester1");
         
-        Issue issue = issueService.searchIssues("project1", null, null, null).stream()
-                .filter(i -> i.getId().equals(issueId))
-                .findFirst().orElseThrow();
-        
+        Issue issue = issueService.getIssueById(issueId).orElseThrow();
         assertEquals(IssueStatus.NEW, issue.getStatus());
         assertEquals("tester1", issue.getReporterId());
         assertEquals(1, issue.getComments().size());

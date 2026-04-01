@@ -27,8 +27,12 @@ public class JsonRepository<T extends Identifiable> implements Repository<T> {
 
     @Override
     public void save(T item) {
-        items.add(item);
-        store();
+        if (findById(item.getId()).isPresent()) {
+            update(item);
+        } else {
+            items.add(item);
+            store();
+        }
     }
 
     @Override

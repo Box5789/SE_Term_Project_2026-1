@@ -57,7 +57,17 @@ public class IMSController {
 
     public void createIssue(String id, String title, String description, String projectId) {
         if (currentUser == null) return;
-        issueService.createIssue(id, title, description, projectId, currentUser.getId());
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("Issue ID cannot be empty");
+        }
+        String trimmedId = id.trim();
+        if (issueService.getIssueById(trimmedId).isPresent()) {
+            throw new IllegalArgumentException("Issue ID already exists: " + trimmedId);
+        }
+        if (projectService.getProjectById(projectId).isEmpty()) {
+            throw new IllegalArgumentException("Invalid Project ID: " + projectId);
+        }
+        issueService.createIssue(trimmedId, title, description, projectId, currentUser.getId());
     }
 
     public void addComment(String issueId, String content) {
@@ -67,11 +77,18 @@ public class IMSController {
 
     public void updateStatus(String issueId, IssueStatus status, String message) {
         if (currentUser == null) return;
-        issueService.updateStatus(issueId, status, currentUser.getId(), message);
+        if (status == IssueStatus.FIXED) {
+            issueService.fixIssue(issueId, currentUser.getId(), message);
+        } else {
+            issueService.updateStatus(issueId, status, currentUser.getId(), message);
+        }
     }
 
     public void assignIssue(String issueId, String assigneeId) {
         if (currentUser == null) return;
+        if (userService.getUserById(assigneeId).isEmpty()) {
+            throw new IllegalArgumentException("Invalid Assignee ID: " + assigneeId);
+        }
         issueService.assignIssue(issueId, assigneeId, currentUser.getId());
     }
 
@@ -80,11 +97,25 @@ public class IMSController {
     }
 
     public void addUser(String id, String name, String password, Role role) {
-        userService.addUser(id, name, password, role);
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("User ID cannot be empty");
+        }
+        String trimmedId = id.trim();
+        if (userService.getUserById(trimmedId).isPresent()) {
+            throw new IllegalArgumentException("User ID already exists: " + trimmedId);
+        }
+        userService.addUser(trimmedId, name, password, role);
     }
 
     public void addProject(String id, String name, String description) {
-        projectService.addProject(id, name, description);
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("Project ID cannot be empty");
+        }
+        String trimmedId = id.trim();
+        if (projectService.getProjectById(trimmedId).isPresent()) {
+            throw new IllegalArgumentException("Project ID already exists: " + trimmedId);
+        }
+        projectService.addProject(trimmedId, name, description);
     }
     
     public Map<String, Long> getStatistics(String projectId) {

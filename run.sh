@@ -9,12 +9,17 @@ fi
 
 # 2. 컴파일 (out 폴더)
 mkdir -p out
-CP="libs/jackson-databind-2.15.2.jar:libs/jackson-core-2.15.2.jar:libs/jackson-annotations-2.15.2.jar:libs/jackson-datatype-jsr310-2.15.2.jar"
+CP="libs/jackson-databind-2.15.2.jar:libs/jackson-core-2.15.2.jar:libs/jackson-annotations-2.15.2.jar:libs/jackson-datatype-jsr310-2.15.2.jar:libs/flatlaf-3.2.jar:libs/flatlaf-extras-3.2.jar"
 
 echo "Compiling..."
 find src/main/java -name "*.java" > sources.txt
 javac -d out -cp "$CP" @sources.txt
 rm sources.txt
+
+# Copy resources to out folder for runtime access
+if [ -d "src/main/resources" ]; then
+    cp -r src/main/resources/* out/
+fi
 
 # 3. 실행
 echo "Running IMS..."
