@@ -1,0 +1,13 @@
+[ {
+  "id" : "123",
+  "title" : "123",
+  "description" : "",
+  "projectId" : "",
+  "reporterId" : "admin",
+  "assigneeId" : null,
+  "fixerId" : null,
+  "priority" : "MAJOR",
+  "status" : "NEW",
+  "reportedDate" : "2026-04-01 16:42:54",
+  "comments" : [ ]
+} ]
