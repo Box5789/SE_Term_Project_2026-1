@@ -14,7 +14,7 @@
 ## 기술 스택
 - **Language**: Java 17
 - **Architecture**: MVC (Model-View-Controller)
-- **UI Frameworks**: JavaFX, Swing (다중 인터페이스 지원)
+- **UI Frameworks**: Swing, JavaFX (다중 인터페이스 지원)
 - **Persistence**: JSON File System (Jackson 라이브러리 활용)
 - **Build Tool**: Gradle
 - **Testing**: JUnit 5
@@ -25,6 +25,20 @@
 저장소를 클론한 후, Gradle을 사용하여 빌드 및 실행합니다.
 ```bash
 ./gradlew run
+```
+기본 실행은 Swing UI입니다. JavaFX UI로 실행하려면 다음 명령을 사용합니다.
+```bash
+./gradlew run --args='javafx'
+```
+Swing UI를 명시적으로 실행하려면 다음 명령을 사용할 수 있습니다.
+```bash
+./gradlew run --args='swing'
+```
+
+테스트와 전체 빌드는 다음 명령으로 확인합니다.
+```bash
+./gradlew test
+./gradlew build
 ```
 
 ### 2. Gradle이 없는 환경 (수동 실행)
@@ -46,7 +60,8 @@ bash run.sh
 
 ## 프로젝트 구조
 - `src/main/java`: 핵심 로직 (Model, Controller, View Interface, SwingView)
-- `src/main/resources/data`: 영속성 데이터를 위한 JSON 저장소
+- `src/main/java/com/se2026/ims/view/javafx`: JavaFX 기반 보조 UI
+- `data` 또는 `src/main/resources/data`: 영속성 데이터를 위한 JSON 저장소 (`data`가 있으면 런타임 저장소로 우선 사용)
 - `src/test/java`: JUnit 테스트 코드 (ScenarioTest)
 - `libs`: 외부 라이브러리 (Jackson, JUnit) - `setup_libs.sh`로 생성 가능
 

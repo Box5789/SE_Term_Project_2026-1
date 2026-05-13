@@ -8,6 +8,7 @@ import com.se2026.ims.service.UserService;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public class IMSController {
@@ -56,7 +57,8 @@ public class IMSController {
     }
 
     public void createIssue(String id, String title, String description, String projectId) {
-        if (currentUser == null) return;
+        requireLoggedIn();
+        requireRole(Role.TESTER);
         if (id == null || id.trim().isEmpty()) {
             throw new IllegalArgumentException("Issue ID cannot be empty");
         }
@@ -71,32 +73,58 @@ public class IMSController {
     }
 
     public void addComment(String issueId, String content) {
-        if (currentUser == null) return;
+        requireLoggedIn();
         issueService.addComment(issueId, currentUser.getId(), content);
     }
 
     public void updateStatus(String issueId, IssueStatus status, String message) {
-        if (currentUser == null) return;
+        requireLoggedIn();
+        Issue issue = issueService.getIssueById(issueId)
+                .orElseThrow(() -> new IllegalArgumentException("Issue not found: " + issueId));
         if (status == IssueStatus.FIXED) {
+            requireRole(Role.DEV);
+            if (!currentUser.getId().equals(issue.getAssigneeId())) {
+                throw new SecurityException("Only the assigned developer can fix this issue");
+            }
             issueService.fixIssue(issueId, currentUser.getId(), message);
+        } else if (status == IssueStatus.RESOLVED || status == IssueStatus.REOPENED) {
+            requireRole(Role.TESTER);
+            if (!currentUser.getId().equals(issue.getReporterId())) {
+                throw new SecurityException("Only the reporter can resolve or reopen this issue");
+            }
+            issueService.updateStatus(issueId, status, currentUser.getId(), message);
+        } else if (status == IssueStatus.CLOSED) {
+            requireRole(Role.PL);
+            issueService.updateStatus(issueId, status, currentUser.getId(), message);
+        } else if (status == IssueStatus.ASSIGNED) {
+            throw new IllegalArgumentException("Use assignIssue to assign an issue with an assignee");
         } else {
             issueService.updateStatus(issueId, status, currentUser.getId(), message);
         }
     }
 
     public void assignIssue(String issueId, String assigneeId) {
-        if (currentUser == null) return;
-        if (userService.getUserById(assigneeId).isEmpty()) {
+        requireLoggedIn();
+        requireRole(Role.PL);
+        Optional<User> assignee = userService.getUserById(assigneeId);
+        if (assignee.isEmpty()) {
             throw new IllegalArgumentException("Invalid Assignee ID: " + assigneeId);
+        }
+        if (assignee.get().getRole() != Role.DEV) {
+            throw new IllegalArgumentException("Assignee must be a developer: " + assigneeId);
         }
         issueService.assignIssue(issueId, assigneeId, currentUser.getId());
     }
 
     public List<String> getRecommendations(String issueId) {
+        requireLoggedIn();
+        requireRole(Role.PL);
         return issueService.recommendAssignee(issueId);
     }
 
     public void addUser(String id, String name, String password, Role role) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
         if (id == null || id.trim().isEmpty()) {
             throw new IllegalArgumentException("User ID cannot be empty");
         }
@@ -108,6 +136,8 @@ public class IMSController {
     }
 
     public void addProject(String id, String name, String description) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
         if (id == null || id.trim().isEmpty()) {
             throw new IllegalArgumentException("Project ID cannot be empty");
         }
@@ -117,10 +147,65 @@ public class IMSController {
         }
         projectService.addProject(trimmedId, name, description);
     }
+
+    public void updateProject(String id, String name, String description) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        projectService.updateProject(id, name, description);
+    }
+
+    public void deleteProject(String id) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        projectService.deleteProject(id);
+    }
+
+    public void updateUser(String id, String name, String password, Role role) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        userService.updateUser(id, name, password, role);
+    }
+
+    public void deleteUser(String id) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        userService.deleteUser(id);
+    }
+
+    public void updateIssue(String id, String title, String description, String projectId, Priority priority) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        issueService.updateIssue(id, title, description, projectId, priority);
+    }
+
+    public void deleteIssue(String id) {
+        requireLoggedIn();
+        requireRole(Role.ADMIN);
+        issueService.deleteIssue(id);
+    }
     
     public Map<String, Long> getStatistics(String projectId) {
         List<Issue> issues = issueService.searchIssues(projectId, null, null, null);
         return issues.stream()
-                .collect(Collectors.groupingBy(i -> i.getReportedDate().toLocalDate().toString(), Collectors.counting()));
+                .collect(Collectors.groupingBy(i -> i.getReportedDate().toLocalDate().toString(), TreeMap::new, Collectors.counting()));
+    }
+
+    public Map<String, Long> getMonthlyStatistics(String projectId) {
+        List<Issue> issues = issueService.searchIssues(projectId, null, null, null);
+        return issues.stream()
+                .collect(Collectors.groupingBy(i -> i.getReportedDate().getYear() + "-" +
+                        String.format("%02d", i.getReportedDate().getMonthValue()), TreeMap::new, Collectors.counting()));
+    }
+
+    private void requireLoggedIn() {
+        if (currentUser == null) {
+            throw new SecurityException("Login is required");
+        }
+    }
+
+    private void requireRole(Role role) {
+        if (currentUser == null || currentUser.getRole() != role) {
+            throw new SecurityException("This action requires " + role + " role");
+        }
     }
 }

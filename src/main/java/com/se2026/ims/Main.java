@@ -8,13 +8,14 @@ import com.se2026.ims.service.IssueService;
 import com.se2026.ims.service.ProjectService;
 import com.se2026.ims.service.UserService;
 import com.se2026.ims.view.IMSView;
+import com.se2026.ims.view.javafx.JavaFxView;
 import com.se2026.ims.view.swing.SwingView;
 
 public class Main {
     private static String findDataDir() {
         String[] paths = {
-            "src/main/resources/data/",
             "data/",
+            "src/main/resources/data/",
             "build/resources/main/data/",
             "out/data/"
         };
@@ -54,6 +55,8 @@ public class Main {
             
             if (viewType.equals("swing")) {
                 view = new SwingView();
+            } else if (viewType.equals("javafx")) {
+                view = new JavaFxView();
             } else {
                 // 다른 뷰가 구현되면 여기에 추가 (현재는 다시 Swing으로 대체)
                 System.out.println("Unsupported view type: " + viewType + ". Using SwingView instead.");

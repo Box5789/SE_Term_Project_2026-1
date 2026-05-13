@@ -16,45 +16,78 @@ public class IssueService {
     }
 
     public Issue createIssue(String id, String title, String description, String projectId, String reporterId) {
-        Issue issue = new Issue(id, title, description, projectId, reporterId);
+        requireText(id, "Issue ID cannot be empty");
+        requireText(title, "Issue title cannot be empty");
+        requireText(description, "Issue description cannot be empty");
+        requireText(projectId, "Project ID cannot be empty");
+        requireText(reporterId, "Reporter ID cannot be empty");
+        if (issueRepository.findById(id.trim()).isPresent()) {
+            throw new IllegalArgumentException("Issue ID already exists: " + id.trim());
+        }
+        Issue issue = new Issue(id.trim(), title.trim(), description.trim(), projectId.trim(), reporterId.trim());
         issueRepository.save(issue);
         return issue;
     }
 
     public void addComment(String issueId, String authorId, String content) {
-        issueRepository.findById(issueId).ifPresent(issue -> {
-            Comment comment = new Comment(authorId, content, LocalDateTime.now());
-            issue.addComment(comment);
-            issueRepository.update(issue);
-        });
+        Issue issue = requireIssue(issueId);
+        requireText(authorId, "Author ID cannot be empty");
+        requireText(content, "Comment cannot be empty");
+        Comment comment = new Comment(authorId, content.trim(), LocalDateTime.now());
+        issue.addComment(comment);
+        issueRepository.update(issue);
     }
 
     public void updateStatus(String issueId, IssueStatus newStatus, String commentAuthorId, String statusMessage) {
-        issueRepository.findById(issueId).ifPresent(issue -> {
-            issue.setStatus(newStatus);
-            if (statusMessage != null && !statusMessage.isEmpty()) {
-                addComment(issueId, commentAuthorId, "Status changed to " + newStatus + ": " + statusMessage);
-            }
-            issueRepository.update(issue);
-        });
+        Issue issue = requireIssue(issueId);
+        validateTransition(issue.getStatus(), newStatus);
+        issue.setStatus(newStatus);
+        if (newStatus == IssueStatus.REOPENED) {
+            issue.setAssigneeId(null);
+            issue.setFixerId(null);
+        }
+        if (statusMessage != null && !statusMessage.trim().isEmpty()) {
+            issue.addComment(new Comment(commentAuthorId, "Status changed to " + newStatus + ": " + statusMessage.trim(), LocalDateTime.now()));
+        }
+        issueRepository.update(issue);
     }
 
     public void assignIssue(String issueId, String assigneeId, String commentAuthorId) {
-        issueRepository.findById(issueId).ifPresent(issue -> {
-            issue.setAssigneeId(assigneeId);
-            issue.setStatus(IssueStatus.ASSIGNED);
-            addComment(issueId, commentAuthorId, "Assigned to " + assigneeId);
-            issueRepository.update(issue);
-        });
+        Issue issue = requireIssue(issueId);
+        requireText(assigneeId, "Assignee ID cannot be empty");
+        validateTransition(issue.getStatus(), IssueStatus.ASSIGNED);
+        issue.setAssigneeId(assigneeId.trim());
+        issue.setStatus(IssueStatus.ASSIGNED);
+        issue.addComment(new Comment(commentAuthorId, "Assigned to " + assigneeId.trim(), LocalDateTime.now()));
+        issueRepository.update(issue);
     }
 
     public void fixIssue(String issueId, String fixerId, String comment) {
-        issueRepository.findById(issueId).ifPresent(issue -> {
-            issue.setFixerId(fixerId);
-            issue.setStatus(IssueStatus.FIXED);
-            addComment(issueId, fixerId, comment);
-            issueRepository.update(issue);
-        });
+        Issue issue = requireIssue(issueId);
+        requireText(fixerId, "Fixer ID cannot be empty");
+        validateTransition(issue.getStatus(), IssueStatus.FIXED);
+        issue.setFixerId(fixerId.trim());
+        issue.setStatus(IssueStatus.FIXED);
+        if (comment != null && !comment.trim().isEmpty()) {
+            issue.addComment(new Comment(fixerId.trim(), comment.trim(), LocalDateTime.now()));
+        }
+        issueRepository.update(issue);
+    }
+
+    public void updateIssue(String id, String title, String description, String projectId, Priority priority) {
+        Issue issue = requireIssue(id);
+        requireText(title, "Issue title cannot be empty");
+        requireText(description, "Issue description cannot be empty");
+        requireText(projectId, "Project ID cannot be empty");
+        issue.setTitle(title.trim());
+        issue.setDescription(description.trim());
+        issue.setProjectId(projectId.trim());
+        issue.setPriority(priority == null ? Priority.MAJOR : priority);
+        issueRepository.update(issue);
+    }
+
+    public void deleteIssue(String id) {
+        issueRepository.delete(id);
     }
 
     public Optional<Issue> getIssueById(String id) {
@@ -111,5 +144,31 @@ public class IssueService {
             if (set2.contains(w)) matchCount++;
         }
         return matchCount;
+    }
+
+    private Issue requireIssue(String issueId) {
+        requireText(issueId, "Issue ID cannot be empty");
+        String trimmedId = issueId.trim();
+        return issueRepository.findById(trimmedId)
+                .orElseThrow(() -> new IllegalArgumentException("Issue not found: " + trimmedId));
+    }
+
+    private void requireText(String value, String message) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void validateTransition(IssueStatus current, IssueStatus next) {
+        if (current == next) return;
+        boolean allowed =
+                (current == IssueStatus.NEW && next == IssueStatus.ASSIGNED) ||
+                (current == IssueStatus.ASSIGNED && next == IssueStatus.FIXED) ||
+                (current == IssueStatus.FIXED && (next == IssueStatus.RESOLVED || next == IssueStatus.REOPENED)) ||
+                (current == IssueStatus.RESOLVED && next == IssueStatus.CLOSED) ||
+                (current == IssueStatus.REOPENED && next == IssueStatus.ASSIGNED);
+        if (!allowed) {
+            throw new IllegalStateException("Invalid status transition: " + current + " -> " + next);
+        }
     }
 }

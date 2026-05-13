@@ -14,7 +14,9 @@ public class ProjectService {
     }
 
     public void addProject(String id, String name, String description) {
-        Project project = new Project(id, name, description);
+        requireText(id, "Project ID cannot be empty");
+        requireText(name, "Project name cannot be empty");
+        Project project = new Project(id.trim(), name.trim(), description == null ? "" : description.trim());
         projectRepository.save(project);
     }
 
@@ -26,9 +28,28 @@ public class ProjectService {
         return projectRepository.findById(id);
     }
 
+    public void updateProject(String id, String name, String description) {
+        projectRepository.findById(id).ifPresent(project -> {
+            requireText(name, "Project name cannot be empty");
+            project.setName(name.trim());
+            project.setDescription(description == null ? "" : description.trim());
+            projectRepository.update(project);
+        });
+    }
+
+    public void deleteProject(String id) {
+        projectRepository.delete(id);
+    }
+
     public void initializeDemoProject() {
         if (projectRepository.findAll().isEmpty()) {
             addProject("project1", "SE Term Project", "Software Engineering Term Project 2026-1");
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
         }
     }
 }

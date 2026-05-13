@@ -11,6 +11,14 @@ import com.formdev.flatlaf.FlatClientProperties;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.DnDConstants;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -240,6 +248,38 @@ public class SwingView implements IMSView {
         JPanel cardsContainer = new JPanel();
         cardsContainer.setLayout(new BoxLayout(cardsContainer, BoxLayout.Y_AXIS));
         cardsContainer.setOpaque(false);
+
+        // 드롭 설정
+        cardsContainer.setTransferHandler(new TransferHandler() {
+            @Override
+            public boolean canImport(TransferSupport support) {
+                return support.isDataFlavorSupported(DataFlavor.stringFlavor);
+            }
+
+            @Override
+            public boolean importData(TransferSupport support) {
+                if (!canImport(support)) return false;
+
+                try {
+                    String issueId = (String) support.getTransferable().getTransferData(DataFlavor.stringFlavor);
+                    if (status == IssueStatus.ASSIGNED) {
+                        String assignee = JOptionPane.showInputDialog(frame, I18n.get("dialog.status.assignee"));
+                        if (assignee == null || assignee.trim().isEmpty()) return false;
+                        controller.assignIssue(issueId, assignee);
+                    } else {
+                        controller.updateStatus(issueId, status, "Moved in Kanban board");
+                    }
+                    updateBoardView();
+                    return true;
+                } catch (UnsupportedFlavorException | IOException e) {
+                    e.printStackTrace();
+                    return false;
+                } catch (RuntimeException e) {
+                    showMessage(e.getMessage());
+                    return false;
+                }
+            }
+        });
         
         allIssues.stream()
             .filter(i -> i.getStatus() == status)
@@ -302,9 +342,29 @@ public class SwingView implements IMSView {
         card.add(Box.createRigidArea(new Dimension(0, 10)));
         card.add(footer);
         
-        card.addMouseListener(new java.awt.event.MouseAdapter() {
+        // 드래그 앤 드롭 설정
+        card.setTransferHandler(new TransferHandler() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public int getSourceActions(JComponent c) {
+                return MOVE;
+            }
+
+            @Override
+            protected Transferable createTransferable(JComponent c) {
+                return new StringSelection(issue.getId());
+            }
+        });
+
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                JComponent c = (JComponent) e.getSource();
+                TransferHandler handler = c.getTransferHandler();
+                handler.exportAsDrag(c, e, TransferHandler.MOVE);
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent e) {
                 updateIssueDetail(issue.getId());
                 showContent("ISSUE_LIST"); // 상세 보기 이동
             }
@@ -575,6 +635,21 @@ public class SwingView implements IMSView {
         JTextField projectFilter = new JTextField(12);
         projectFilter.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, I18n.get("issue.project_id"));
         filterPanel.add(projectFilter);
+
+        JTextField reporterFilter = new JTextField(10);
+        reporterFilter.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, I18n.get("issue.reporter"));
+        filterPanel.add(reporterFilter);
+
+        JTextField assigneeFilter = new JTextField(10);
+        assigneeFilter.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, I18n.get("issue.assignee"));
+        filterPanel.add(assigneeFilter);
+
+        JComboBox<String> statusFilter = new JComboBox<>();
+        statusFilter.addItem(I18n.get("common.all"));
+        for (IssueStatus status : IssueStatus.values()) {
+            statusFilter.addItem(status.name());
+        }
+        filterPanel.add(statusFilter);
         
         JButton searchBtn = new JButton(I18n.get("issue.search"));
         searchBtn.putClientProperty("JButton.buttonType", "roundRect");
@@ -633,8 +708,14 @@ public class SwingView implements IMSView {
         issueListPanel.add(splitPane, BorderLayout.CENTER);
 
         searchBtn.addActionListener(e -> {
-            String pid = projectFilter.getText().isEmpty() ? null : projectFilter.getText();
-            List<Issue> issues = controller.searchIssues(pid, null, null, null);
+            IssueStatus status = statusFilter.getSelectedIndex() <= 0
+                    ? null
+                    : IssueStatus.valueOf((String) statusFilter.getSelectedItem());
+            List<Issue> issues = controller.searchIssues(
+                    blankToNull(projectFilter.getText()),
+                    blankToNull(reporterFilter.getText()),
+                    blankToNull(assigneeFilter.getText()),
+                    status);
             refreshIssueTable(issues);
         });
 
@@ -685,20 +766,54 @@ public class SwingView implements IMSView {
         
         JButton addCommentBtn = new JButton(I18n.get("issue.add_comment"));
         JButton changeStatusBtn = new JButton(I18n.get("issue.change_status"));
+        JButton editIssueBtn = new JButton(I18n.get("issue.btn.edit"));
+        JButton deleteIssueBtn = new JButton(I18n.get("issue.btn.delete"));
         
         addCommentBtn.putClientProperty("JButton.buttonType", "roundRect");
         changeStatusBtn.putClientProperty("JButton.buttonType", "roundRect");
+        editIssueBtn.putClientProperty("JButton.buttonType", "roundRect");
+        deleteIssueBtn.putClientProperty("JButton.buttonType", "roundRect");
 
+        actionPanel.add(editIssueBtn);
+        actionPanel.add(deleteIssueBtn);
         actionPanel.add(addCommentBtn);
         actionPanel.add(changeStatusBtn);
         issueDetailPanel.add(actionPanel, BorderLayout.SOUTH);
+
+        editIssueBtn.addActionListener(e -> {
+            if (currentIssueId != null) showEditIssueDialog(currentIssueId);
+        });
+
+        deleteIssueBtn.addActionListener(e -> {
+            if (currentIssueId != null) {
+                int confirm = JOptionPane.showConfirmDialog(frame, I18n.get("admin.confirm.delete"), I18n.get("common.info"), JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    try {
+                        controller.deleteIssue(currentIssueId);
+                        showMessage(I18n.get("issue.msg.deleted"));
+                        updateIssueList();
+                        issueInfoArea.setText(I18n.get("issue.no_selection"));
+                        commentPanel.removeAll();
+                        commentPanel.revalidate();
+                        commentPanel.repaint();
+                        currentIssueId = null;
+                    } catch (RuntimeException ex) {
+                        showMessage(ex.getMessage());
+                    }
+                }
+            }
+        });
 
         addCommentBtn.addActionListener(e -> {
             if (currentIssueId == null) return;
             String content = JOptionPane.showInputDialog(frame, I18n.get("dialog.comment.enter"));
             if (content != null && !content.isEmpty()) {
-                controller.addComment(currentIssueId, content);
-                updateIssueDetail(currentIssueId);
+                try {
+                    controller.addComment(currentIssueId, content);
+                    updateIssueDetail(currentIssueId);
+                } catch (RuntimeException ex) {
+                    showMessage(ex.getMessage());
+                }
             }
         });
 
@@ -821,7 +936,51 @@ public class SwingView implements IMSView {
                     controller.updateStatus(currentIssueId, selected, msg);
                 }
                 updateIssueDetail(currentIssueId);
-            } catch (IllegalArgumentException ex) {
+            } catch (RuntimeException ex) {
+                showMessage(ex.getMessage());
+            }
+        }
+    }
+
+    private void showEditIssueDialog(String issueId) {
+        Optional<Issue> issueOpt = controller.getIssueById(issueId);
+        if (issueOpt.isEmpty()) return;
+        Issue issue = issueOpt.get();
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        JTextField titleField = new JTextField(issue.getTitle(), 20);
+        JTextArea descArea = new JTextArea(issue.getDescription(), 5, 20);
+        descArea.setLineWrap(true);
+        descArea.setWrapStyleWord(true);
+        
+        List<Project> projects = controller.getAllProjects();
+        JComboBox<String> projectCombo = new JComboBox<>(projects.stream().map(Project::getId).toArray(String[]::new));
+        projectCombo.setSelectedItem(issue.getProjectId());
+        
+        JComboBox<Priority> priorityCombo = new JComboBox<>(Priority.values());
+        priorityCombo.setSelectedItem(issue.getPriority());
+
+        gbc.gridx = 0; gbc.gridy = 0; panel.add(new JLabel(I18n.get("issue.label.title")), gbc);
+        gbc.gridx = 1; panel.add(titleField, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel(I18n.get("issue.label.description")), gbc);
+        gbc.gridx = 1; panel.add(new JScrollPane(descArea), gbc);
+        gbc.gridx = 0; gbc.gridy = 2; panel.add(new JLabel(I18n.get("issue.project")), gbc);
+        gbc.gridx = 1; panel.add(projectCombo, gbc);
+        gbc.gridx = 0; gbc.gridy = 3; panel.add(new JLabel("Priority:"), gbc);
+        gbc.gridx = 1; panel.add(priorityCombo, gbc);
+
+        int option = JOptionPane.showConfirmDialog(frame, panel, I18n.get("issue.btn.edit"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                controller.updateIssue(issueId, titleField.getText(), descArea.getText(), (String) projectCombo.getSelectedItem(), (Priority) priorityCombo.getSelectedItem());
+                updateIssueDetail(issueId);
+                updateIssueList();
+                showMessage(I18n.get("issue.msg.updated"));
+            } catch (RuntimeException ex) {
                 showMessage(ex.getMessage());
             }
         }
@@ -854,7 +1013,7 @@ public class SwingView implements IMSView {
                 controller.createIssue(idField.getText(), titleField.getText(), descField.getText(), projectField.getText());
                 updateIssueList();
                 updateBoardView();
-            } catch (IllegalArgumentException ex) {
+            } catch (RuntimeException ex) {
                 showMessage(ex.getMessage());
             }
         }
@@ -888,7 +1047,26 @@ public class SwingView implements IMSView {
         subTitle.setBorder(BorderFactory.createEmptyBorder(20, 0, 10, 0));
         content.add(subTitle);
 
-        // Simple Bar Chart visualization
+        renderStats(content, stats);
+
+        JLabel monthTitle = new JLabel(I18n.get("stats.monthly_header"));
+        monthTitle.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+        monthTitle.setBorder(BorderFactory.createEmptyBorder(30, 0, 10, 0));
+        content.add(monthTitle);
+
+        renderStats(content, controller.getMonthlyStatistics(null));
+
+        content.revalidate();
+        content.repaint();
+    }
+
+    private void renderStats(JPanel content, Map<String, Long> stats) {
+        if (stats.isEmpty()) {
+            JLabel empty = new JLabel(I18n.get("stats.no_data"));
+            empty.setForeground(Color.GRAY);
+            content.add(empty);
+            return;
+        }
         for (Map.Entry<String, Long> entry : stats.entrySet()) {
             JPanel barRow = new JPanel(new BorderLayout(15, 0));
             barRow.setOpaque(false);
@@ -907,10 +1085,11 @@ public class SwingView implements IMSView {
                     Graphics2D g2 = (Graphics2D) g;
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setColor(new Color(0, 122, 255));
-                    int width = (int) (count * 50); // Scale factor
-                    g2.fillRoundRect(0, 5, Math.min(width, getWidth() - 50), 20, 10, 10);
+                    int width = (int) (count * 50);
+                    int labelX = Math.min(width, Math.max(0, getWidth() - 50));
+                    g2.fillRoundRect(0, 5, labelX, 20, 10, 10);
                     g2.setColor(Color.BLACK);
-                    g2.drawString(count + " " + I18n.get("stats.issues_suffix"), Math.min(width, getWidth() - 50) + 10, 20);
+                    g2.drawString(count + " " + I18n.get("stats.issues_suffix"), labelX + 10, 20);
                 }
             };
             barContainer.setOpaque(false);
@@ -918,9 +1097,6 @@ public class SwingView implements IMSView {
 
             content.add(barRow);
         }
-
-        content.revalidate();
-        content.repaint();
     }
 
     private void initAdminPanel() {
@@ -937,6 +1113,9 @@ public class SwingView implements IMSView {
 
         userTable = new JTable();
         projectTable = new JTable();
+
+        setupAdminTablePopup(userTable, true);
+        setupAdminTablePopup(projectTable, false);
 
         JPanel userPanel = new JPanel(new BorderLayout(0, 15));
         userPanel.setOpaque(false);
@@ -995,7 +1174,7 @@ public class SwingView implements IMSView {
 
         JTextField idField = new JTextField(15);
         JTextField nameField = new JTextField(15);
-        JTextField pwField = new JTextField(15);
+        JPasswordField pwField = new JPasswordField(15);
         Role[] roles = Role.values();
         JComboBox<Role> roleCombo = new JComboBox<>(roles);
 
@@ -1011,10 +1190,10 @@ public class SwingView implements IMSView {
         int option = JOptionPane.showConfirmDialog(frame, panel, I18n.get("admin.add_user"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (option == JOptionPane.OK_OPTION) {
             try {
-                controller.addUser(idField.getText(), nameField.getText(), pwField.getText(), (Role)roleCombo.getSelectedItem());
+                controller.addUser(idField.getText(), nameField.getText(), new String(pwField.getPassword()), (Role)roleCombo.getSelectedItem());
                 updateAdminPanel();
                 showMessage(I18n.get("admin.msg.user_added"));
-            } catch (IllegalArgumentException ex) {
+            } catch (RuntimeException ex) {
                 showMessage(ex.getMessage());
             }
         }
@@ -1043,10 +1222,144 @@ public class SwingView implements IMSView {
                 controller.addProject(idField.getText(), nameField.getText(), descField.getText());
                 updateAdminPanel();
                 showMessage(I18n.get("admin.msg.project_added"));
-            } catch (IllegalArgumentException ex) {
+            } catch (RuntimeException ex) {
                 showMessage(ex.getMessage());
             }
         }
+    }
+
+    private void setupAdminTablePopup(JTable table, boolean isUserTable) {
+        JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem editItem = new JMenuItem(I18n.get("admin.btn.edit"));
+        JMenuItem deleteItem = new JMenuItem(I18n.get("admin.btn.delete"));
+
+        editItem.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row != -1) {
+                String id = (String) table.getValueAt(row, 0);
+                if (isUserTable) {
+                    showEditUserDialog(id);
+                } else {
+                    showEditProjectDialog(id);
+                }
+            }
+        });
+
+        deleteItem.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row != -1) {
+                String id = (String) table.getValueAt(row, 0);
+                int confirm = JOptionPane.showConfirmDialog(frame, I18n.get("admin.confirm.delete"), I18n.get("common.info"), JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    try {
+                        if (isUserTable) {
+                            controller.deleteUser(id);
+                            showMessage(I18n.get("admin.msg.user_deleted"));
+                        } else {
+                            controller.deleteProject(id);
+                            showMessage(I18n.get("admin.msg.project_deleted"));
+                        }
+                        updateAdminPanel();
+                    } catch (RuntimeException ex) {
+                        showMessage(ex.getMessage());
+                    }
+                }
+            }
+        });
+
+        popupMenu.add(editItem);
+        popupMenu.add(deleteItem);
+
+        table.setComponentPopupMenu(popupMenu);
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                int r = table.rowAtPoint(e.getPoint());
+                if (r >= 0 && r < table.getRowCount()) {
+                    table.setRowSelectionInterval(r, r);
+                } else {
+                    table.clearSelection();
+                }
+            }
+        });
+    }
+
+    private void showEditUserDialog(String userId) {
+        Optional<User> userOpt = controller.getAllUsers().stream().filter(u -> u.getId().equals(userId)).findFirst();
+        if (userOpt.isEmpty()) return;
+        User user = userOpt.get();
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        JTextField idField = new JTextField(user.getId(), 15);
+        idField.setEditable(false);
+        JTextField nameField = new JTextField(user.getName(), 15);
+        JPasswordField pwField = new JPasswordField(15);
+        pwField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, I18n.get("admin.password.keep"));
+        Role[] roles = Role.values();
+        JComboBox<Role> roleCombo = new JComboBox<>(roles);
+        roleCombo.setSelectedItem(user.getRole());
+
+        gbc.gridx = 0; gbc.gridy = 0; panel.add(new JLabel(I18n.get("admin.label.user_id")), gbc);
+        gbc.gridx = 1; panel.add(idField, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel(I18n.get("admin.label.name")), gbc);
+        gbc.gridx = 1; panel.add(nameField, gbc);
+        gbc.gridx = 0; gbc.gridy = 2; panel.add(new JLabel(I18n.get("admin.label.password")), gbc);
+        gbc.gridx = 1; panel.add(pwField, gbc);
+        gbc.gridx = 0; gbc.gridy = 3; panel.add(new JLabel(I18n.get("admin.label.role")), gbc);
+        gbc.gridx = 1; panel.add(roleCombo, gbc);
+
+        int option = JOptionPane.showConfirmDialog(frame, panel, I18n.get("admin.btn.edit"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                controller.updateUser(user.getId(), nameField.getText(), new String(pwField.getPassword()), (Role)roleCombo.getSelectedItem());
+                updateAdminPanel();
+                showMessage(I18n.get("admin.msg.user_updated"));
+            } catch (RuntimeException ex) {
+                showMessage(ex.getMessage());
+            }
+        }
+    }
+
+    private void showEditProjectDialog(String projectId) {
+        Optional<Project> projOpt = controller.getAllProjects().stream().filter(p -> p.getId().equals(projectId)).findFirst();
+        if (projOpt.isEmpty()) return;
+        Project project = projOpt.get();
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        JTextField idField = new JTextField(project.getId(), 15);
+        idField.setEditable(false);
+        JTextField nameField = new JTextField(project.getName(), 15);
+        JTextField descField = new JTextField(project.getDescription(), 15);
+
+        gbc.gridx = 0; gbc.gridy = 0; panel.add(new JLabel(I18n.get("admin.label.project_id")), gbc);
+        gbc.gridx = 1; panel.add(idField, gbc);
+        gbc.gridx = 0; gbc.gridy = 1; panel.add(new JLabel(I18n.get("admin.label.project_name")), gbc);
+        gbc.gridx = 1; panel.add(nameField, gbc);
+        gbc.gridx = 0; gbc.gridy = 2; panel.add(new JLabel(I18n.get("admin.label.description")), gbc);
+        gbc.gridx = 1; panel.add(descField, gbc);
+
+        int option = JOptionPane.showConfirmDialog(frame, panel, I18n.get("admin.btn.edit"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                controller.updateProject(project.getId(), nameField.getText(), descField.getText());
+                updateAdminPanel();
+                showMessage(I18n.get("admin.msg.project_updated"));
+            } catch (RuntimeException ex) {
+                showMessage(ex.getMessage());
+            }
+        }
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
     @Override

@@ -15,7 +15,13 @@ public class UserService {
     }
 
     public void addUser(String id, String name, String password, Role role) {
-        User user = new User(id, name, password, role);
+        requireText(id, "User ID cannot be empty");
+        requireText(name, "User name cannot be empty");
+        requireText(password, "Password cannot be empty");
+        if (role == null) {
+            throw new IllegalArgumentException("Role cannot be empty");
+        }
+        User user = new User(id.trim(), name.trim(), password, role);
         userRepository.save(user);
     }
 
@@ -32,6 +38,25 @@ public class UserService {
         return userRepository.findAll();
     }
 
+    public void updateUser(String id, String name, String password, Role role) {
+        userRepository.findById(id).ifPresent(user -> {
+            requireText(name, "User name cannot be empty");
+            if (role == null) {
+                throw new IllegalArgumentException("Role cannot be empty");
+            }
+            user.setName(name.trim());
+            if (password != null && !password.trim().isEmpty()) {
+                user.setPassword(password);
+            }
+            user.setRole(role);
+            userRepository.update(user);
+        });
+    }
+
+    public void deleteUser(String id) {
+        userRepository.delete(id);
+    }
+
     public void initializeDemoUsers() {
         if (userRepository.findAll().isEmpty()) {
             addUser("admin", "Admin", "admin123", Role.ADMIN);
@@ -43,6 +68,12 @@ public class UserService {
             for (int i = 1; i <= 5; i++) {
                 addUser("tester" + i, "Tester " + i, "test123", Role.TESTER);
             }
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
         }
     }
 }
