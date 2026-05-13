@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -77,6 +78,10 @@ cmake-build-*/
 # IntelliJ
 out/
 libs/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
 
 # Data
 src/main/resources/data/*.json
