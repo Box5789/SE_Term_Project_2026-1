@@ -2,4 +2,8 @@
   "id" : "project1",
   "name" : "SE Term Project",
   "description" : "Software Engineering Term Project 2026-1"
+}, {
+  "id" : "project2",
+  "name" : "SE Test",
+  "description" : "Project testing"
 } ]

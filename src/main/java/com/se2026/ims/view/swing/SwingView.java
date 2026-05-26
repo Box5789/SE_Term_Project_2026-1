@@ -4,8 +4,7 @@ import com.se2026.ims.controller.IMSController;
 import com.se2026.ims.model.*;
 import com.se2026.ims.util.I18n;
 import com.se2026.ims.view.IMSView;
-import com.formdev.flatlaf.themes.FlatMacLightLaf;
-import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatClientProperties;
 
 import javax.swing.*;
@@ -61,7 +60,7 @@ public class SwingView implements IMSView {
         SwingUtilities.invokeLater(() -> {
             try {
                 // Apply Apple-style Look and Feel
-                if (!FlatMacLightLaf.setup()) {
+                if (!FlatLightLaf.setup()) {
                     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 }
                 
